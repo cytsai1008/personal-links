@@ -2,6 +2,7 @@
 ---
 
 @import url('https://fonts.googleapis.com/css2?family=Poppins');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@100..900&display=swap');
 @import url(https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/0.0.0-5a9c68d/base.css);
 @import url(https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/0.0.0-5a9c68d/components.min.css);
 @import url(https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/0.0.0-5a9c68d/utilities.min.css);
@@ -14,7 +15,7 @@ html {
     a{
         outline: none;
     }
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Poppins', "Noto Sans TC", sans-serif;
     #image {
         transition: all 0.5s ease;
         background-position: center;

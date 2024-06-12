@@ -194,3 +194,5 @@ Icon
 *.scss.map
 
 # End of https://www.toptal.com/developers/gitignore/api/node,jekyll,ruby,sass
+
+.idea/*
