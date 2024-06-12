@@ -1,4 +1,4 @@
-# [personal-links](https://github.com/cytsai1008/personal-links)
+# [personal-links](https://cytsai1008.github.io/personal-links/)
 
 ---
 Just a page for me to be used on furrycons.
