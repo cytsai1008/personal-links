@@ -4,8 +4,9 @@
   "description": "A Beautiful Jekyll Theme For Links",
   "main": "postcss.config.js",
   "dependencies": {
-    "tailwindcss": "^2.2.4",
-    "jekyll": "^3.0.0-beta1"
+    "jekyll": "^3.0.0-beta1",
+    "puppeteer": "^22.11.1",
+    "tailwindcss": "^2.2.4"
   },
   "devDependencies": {
     "jekyll": "^3.0.0-beta1",
@@ -17,7 +18,8 @@
     "npm-bundle-install": "bundle install && npm run npm-jekyll-s",
     "npm-install": "npm install && npm run npm-bundle-install",
     "npm-up": "nodemon --exec npm run npm-install",
-    "start": "npm run npm-up"
+    "start": "npm run npm-up",
+    "ss": "node ./scripts/screenshot.js"
   },
   "keywords": [
     "links",
