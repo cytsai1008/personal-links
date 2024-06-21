@@ -47,11 +47,11 @@ links:
     Text_Color: '#ffffff'
 
     # STEAM
-  - Name: Steam
-    URL: https://steamcommunity.com/id
-    Username: 'cytsai1008'
-    Color: '#314763'
-    Icon-Class: fab fa-steam
+#  - Name: Steam
+#    URL: https://steamcommunity.com/id
+#    Username: 'cytsai1008'
+#    Color: '#314763'
+#    Icon-Class: fab fa-steam
 
     # GITHUB
   - Name: GitHub
@@ -68,6 +68,12 @@ links:
   #   Color: '#5865F2'
   #   Text_Color: '#ffffff'
 
+imglinks:
+  - Name: VRChat
+    URL: https://vrchat.com/home/user/usr_e8bc0487-8705-4a6e-9bcb-6739efc6bca0
+    Color: '#cccccc'
+    Text_Color: '#000000'
+    Img_URL: 'vrc-logo-cropped.svg'
 
 # YOU CAN REMOVE FOOTER COMPLETELY BY SIMPLY REMOVING EITHER THE YES OR REMOVING THE FOOTER STATEMENT BELOW COMPLETELY
 # footer: 'Yes'
