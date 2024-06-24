@@ -71,8 +71,8 @@ links:
 imglinks:
   - Name: VRChat
     URL: https://vrchat.com/home/user/usr_e8bc0487-8705-4a6e-9bcb-6739efc6bca0
-    Color: '#cccccc'
-    Text_Color: '#000000'
+    Color: '#003333'
+    Text_Color: '#ffffff'
     Img_URL: 'vrc-logo-cropped.svg'
 
 # YOU CAN REMOVE FOOTER COMPLETELY BY SIMPLY REMOVING EITHER THE YES OR REMOVING THE FOOTER STATEMENT BELOW COMPLETELY
