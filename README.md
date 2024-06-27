@@ -1,4 +1,4 @@
-# [personal-links](https://cytsai1008.github.io/personal-links/)
+# [personal-links](https://link.photocat.blue/)
 
 ---
 Just a page for me to be used on furrycons.
