@@ -9,7 +9,7 @@
       href="https://images.weserv.nl/?url={{site.Image_URL}}&h=300&w=300&fit=cover&mask=circle&l=9&output=webp&q=63"
       onError="this.onerror=null;this.src='{% for link in site.links %}{% if link.Username and link.Name == 'GitHub' %}{{link.URL}}/{{link.Username}}.png{% endif %}{% endfor %}';"
       type="image/x-icon">
-<link rel="stylesheet" href="{{ '/assets/css/main.css' | relative_url}}">
+<link rel="stylesheet" href="/assets/css/main.css">
 <script src="https://kit.fontawesome.com/609f7f6148.js" crossorigin="anonymous"></script>
 
 <!-- Open Graph Meta Tags -->
@@ -18,7 +18,7 @@
 <meta property="og:title" content="健一 | Kenichi">
 <meta property="og:description" content="一隻寫程式和拍照的藍貓，大佬椒麻 ">
 <meta property="og:image"
-      content="https://cytsai1008.github.io{{ '/assets/og/screenshot.png' | relative_url}}">
+      content="/assets/og/screenshot.png">
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="960">
 
@@ -29,4 +29,4 @@
 <meta name="twitter:title" content="健一 | Kenichi">
 <meta name="twitter:description" content="一隻寫程式和拍照的藍貓，大佬椒麻 ">
 <meta name="twitter:image"
-      content="https://cytsai1008.github.io{{ '/assets/og/screenshot.png' | relative_url}}">
+      content="/assets/css/main.css">
