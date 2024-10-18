@@ -14,9 +14,8 @@
     "tailwindcss": "^2.2.4"
   },
   "scripts": {
-    "start": "npm run ss",
-    "ss": "node ./scripts/screenshot.js",
-    "serve": "bundle exec jekyll serve"
+    "serve": "bundle exec jekyll serve",
+    "ss": "node ./scripts/screenshot.js"
   },
   "keywords": [
     "links",
