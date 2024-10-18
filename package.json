@@ -14,12 +14,9 @@
     "tailwindcss": "^2.2.4"
   },
   "scripts": {
-    "npm-jekyll-s": "bundle exec jekyll s -l -o",
-    "npm-bundle-install": "bundle install && npm run npm-jekyll-s",
-    "npm-install": "npm install && npm run npm-bundle-install",
-    "npm-up": "nodemon --exec npm run npm-install",
-    "start": "npm run npm-up",
-    "ss": "node ./scripts/screenshot.js"
+    "start": "npm run ss",
+    "ss": "node ./scripts/screenshot.js",
+    "serve": "bundle exec jekyll serve"
   },
   "keywords": [
     "links",
