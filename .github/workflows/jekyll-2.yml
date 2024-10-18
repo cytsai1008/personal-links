@@ -53,8 +53,6 @@ jobs:
         run: npm run serve &
       - name: Run screenshot script
         run: npm run ss
-      - name: Stop live server
-        run: kill $(jobs -p)
       - name: Push changes if any
         run: |
           if [ -n "$(git status --porcelain assets/og/)" ]; then
