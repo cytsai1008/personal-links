@@ -38,39 +38,15 @@ const puppeteer = require("puppeteer");
     // Set a real user agent to avoid being blocked by font services
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
     
-    // Block analytics and other non-essential resources to speed up loading
-    await page.setRequestInterception(true);
-    page.on('request', (request) => {
-      const url = request.url();
-      const resourceType = request.resourceType();
-      
-      // Block analytics and tracking
-      if (url.includes('google-analytics.com') || 
-          url.includes('googletagmanager.com') ||
-          url.includes('gtag.js')) {
-        request.abort();
-      } else {
-        // Set referrer for Font Awesome kit requests
-        if (url.includes('fontawesome.com')) {
-          request.continue({
-            headers: {
-              ...request.headers(),
-              'Referer': 'https://link.photocat.blue/'
-            }
-          });
-        } else {
-          request.continue();
-        }
-      }
-    });
-    
     await page.setViewport({ width: 1200, height: 600 });
 
-    // Enable console logging from the page
-    page.on('console', msg => console.log('PAGE LOG:', msg.text()));
-    page.on('pageerror', error => console.log('PAGE ERROR:', error.message));
-    page.on('requestfailed', request => {
-      console.log('FAILED REQUEST:', request.url(), 'Status:', request.failure()?.errorText);
+    // Log all requests
+    page.on('request', request => {
+      console.log('REQUEST:', request.method(), request.url());
+    });
+    
+    page.on('response', response => {
+      console.log('RESPONSE:', response.status(), response.url());
     });
 
     // Navigate and wait for load event
@@ -105,44 +81,9 @@ const puppeteer = require("puppeteer");
       
       // Remove temp div
       document.body.removeChild(tempDiv);
-      
-      // Get all loaded fonts
-      const loadedFonts = [];
-      document.fonts.forEach(font => {
-        if (font.status === 'loaded') {
-          loadedFonts.push({
-            family: font.family,
-            style: font.style,
-            weight: font.weight,
-            status: font.status
-          });
-        }
-      });
-      
-      // Check specific fonts
-      const fontsToCheck = [
-        'Poppins', 
-        'Noto Sans TC', 
-        'Font Awesome 7 Brands', 
-        'Font Awesome 7 Free',
-        'Font Awesome 6 Brands', 
-        'Font Awesome 6 Free'
-      ];
-      
-      const fontChecks = {};
-      fontsToCheck.forEach(fontFamily => {
-        fontChecks[fontFamily] = document.fonts.check(`16px "${fontFamily}"`);
-      });
-      
-      return {
-        loadedFonts,
-        fontChecks,
-        fontsReady: document.fonts.status
-      };
     });
 
-    console.log('Loaded fonts count:', fontInfo.loadedFonts.length);
-    console.log('Font checks:', fontInfo.fontChecks);
+    console.log('Fonts loaded, capturing screenshot...');
     
     // Wait additional time for rendering
     await new Promise(resolve => setTimeout(resolve, 2000));
