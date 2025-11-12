@@ -138,29 +138,46 @@ jobs:
             echo "Screenshot directory ${SCREENSHOT_DIR} not found; skipping add."
           fi
 
-      - name: Commit and push changes if any (only screenshots -> deploy)
+      - name: Commit and push screenshots via a temporary branch to avoid checkout conflicts
         run: |
-          # Move screenshot output out of the working tree to avoid checkout conflicts,
-          # then restore it into the deploy branch for commit.
+          # Strategy:
+          # 1) Create a temporary branch from the current HEAD, commit the screenshots there.
+          # 2) Checkout (or create) the deploy branch.
+          # 3) Pull the screenshots from the temporary branch into deploy using `git checkout tmp -- path`.
+          # 4) Commit & push only the screenshots to deploy.
+          #
+          # This avoids leaving uncommitted changes in the working tree that block branch checkout
+          # and ensures we never push the current HEAD to master accidentally.
+
           SCREENSHOT_DIR="assets/og"
-          BACKUP_DIR="$(mktemp -d)"
-          echo "Using backup dir: ${BACKUP_DIR}"
-
-          if [ -d "${SCREENSHOT_DIR}" ]; then
-            # move the directory to backup so checkout won't be blocked by local changes
-            echo "Temporarily moving ${SCREENSHOT_DIR} to ${BACKUP_DIR}"
-            mv "${SCREENSHOT_DIR}" "${BACKUP_DIR}/" || true
-          else
-            echo "No existing ${SCREENSHOT_DIR} in working tree to back up."
-          fi
-
+          TMP_BRANCH="tmp-screenshots-${GITHUB_RUN_ID:-manual}-${GITHUB_RUN_NUMBER:-0}"
           TARGET_BRANCH="deploy"
 
-          # Ensure remote refs are available
-          git fetch origin --prune
+          echo "Temporary branch will be: ${TMP_BRANCH}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Create or checkout the deploy branch safely now that screenshots are moved
-          if git rev-parse --verify "${TARGET_BRANCH}" >/dev/null 2>&1; then
+          # Create temp branch from current HEAD (this keeps current working tree intact)
+          git checkout -b "${TMP_BRANCH}"
+
+          # Stage screenshots (if present) and commit on the temp branch
+          if [ -d "${SCREENSHOT_DIR}" ]; then
+            git add -- "${SCREENSHOT_DIR}"
+            if [ -n "$(git diff --cached --name-only)" ]; then
+              git commit -m "Temp: capture screenshots [ci skip]" || true
+            else
+              echo "No screenshot changes to commit on temp branch."
+            fi
+          else
+            echo "No ${SCREENSHOT_DIR} present on workspace to commit."
+          fi
+
+          # Push the temp branch to the remote so we can reference its tree safely
+          git push --set-upstream origin "${TMP_BRANCH}" || true
+
+          # Fetch and prepare the deploy branch
+          git fetch origin --prune
+          if git ls-remote --heads origin "${TARGET_BRANCH}" | grep -q "${TARGET_BRANCH}"; then
             git checkout "${TARGET_BRANCH}"
             git reset --mixed "origin/${TARGET_BRANCH}" || true
           else
@@ -169,41 +186,34 @@ jobs:
             git commit --allow-empty -m "Initialize ${TARGET_BRANCH} branch"
           fi
 
-          # Remove any tracked build artifacts from the index to prevent accidental commits
+          # Ensure any tracked build artifacts are removed from index
           git rm -r --cached --ignore-unmatch _site .bundle vendor node_modules || true
           git rm --cached --ignore-unmatch Gemfile.lock package-lock.json || true
 
-          # Restore screenshots from backup into the working tree in the correct location
-          if [ -d "${BACKUP_DIR}/og" ]; then
-            mkdir -p assets
-            mv "${BACKUP_DIR}/og" assets/ || true
-          elif [ -d "${BACKUP_DIR}/assets/og" ]; then
-            mkdir -p assets
-            mv "${BACKUP_DIR}/assets/og" assets/og || true
-          else
-            echo "No screenshots found in backup; nothing to restore."
+          # Pull screenshots from the temp branch into the deploy branch working tree
+          if git show --name-only --pretty=format: "origin/${TMP_BRANCH}:${SCREENSHOT_DIR}" >/dev/null 2>&1; then
+            :
           fi
+          # Using `git checkout <branch> -- <path>` to copy files from the temp branch into current branch
+          git checkout "${TMP_BRANCH}" -- "${SCREENSHOT_DIR}" || true
 
-          # Stage only the screenshots directory (if present)
+          # Stage and commit only the screenshots (if any)
           if [ -d "${SCREENSHOT_DIR}" ]; then
             git add -- "${SCREENSHOT_DIR}"
+            if [ -n "$(git diff --cached --name-only)" ]; then
+              git commit -m "Update screenshots from master [skip ci]" || true
+              git push origin HEAD:deploy --follow-tags
+            else
+              echo "No staged screenshot changes to commit."
+            fi
           else
-            echo "Screenshot directory ${SCREENSHOT_DIR} not found in deploy branch; nothing to add."
+            echo "No screenshots found to add to deploy branch."
           fi
 
-          # Commit only if there are staged changes
-          if [ -n "$(git diff --cached --name-only)" ]; then
-            git commit -m "Update screenshots from master [skip ci]" || true
-            # Always push to the deploy branch explicitly to avoid pushing to the event branch
-            git push origin HEAD:deploy --follow-tags
-          else
-            echo "No staged changes to commit."
-          fi
-
-          # Cleanup any backup left behind
-          if [ -d "${BACKUP_DIR}" ]; then
-            rm -rf "${BACKUP_DIR}" || true
-          fi
+          # Cleanup: delete temporary branch locally and remotely
+          git checkout - >/dev/null 2>&1 || true
+          git branch -D "${TMP_BRANCH}" >/dev/null 2>&1 || true
+          git push origin --delete "${TMP_BRANCH}" >/dev/null 2>&1 || true
 
       - name: Show pushed branch info
         run: |
