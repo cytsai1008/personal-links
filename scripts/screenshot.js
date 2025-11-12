@@ -16,7 +16,7 @@ const puppeteer = require("puppeteer");
     await fs.promises.mkdir(outDir, { recursive: true });
 
     // URL to screenshot (can be overridden with SCREENSHOT_URL)
-    const url = process.env.SCREENSHOT_URL || "http://127.0.0.1:4000/";
+    const url = process.env.SCREENSHOT_URL || "http://localhost:4000/";
 
     // Puppeteer launch options suitable for GitHub Actions / CI environments
     const launchOptions = {
@@ -34,19 +34,21 @@ const puppeteer = require("puppeteer");
     const browser = await puppeteer.launch(launchOptions);
 
     const page = await browser.newPage();
-    
+
     // Set a real user agent to avoid being blocked by font services
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
-    
+    await page.setUserAgent(
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    );
+
     await page.setViewport({ width: 1200, height: 600 });
 
     // Log all requests
-    page.on('request', request => {
-      console.log('REQUEST:', request.method(), request.url());
+    page.on("request", (request) => {
+      console.log("REQUEST:", request.method(), request.url());
     });
-    
-    page.on('response', response => {
-      console.log('RESPONSE:', response.status(), response.url());
+
+    page.on("response", (response) => {
+      console.log("RESPONSE:", response.status(), response.url());
     });
 
     // Navigate and wait for load event
@@ -59,34 +61,35 @@ const puppeteer = require("puppeteer");
     const fontInfo = await page.evaluate(async () => {
       // Wait for document fonts to be ready
       await document.fonts.ready;
-      
+
       // Force load all fonts by rendering them
-      const tempDiv = document.createElement('div');
-      tempDiv.style.position = 'absolute';
-      tempDiv.style.left = '-9999px';
-      tempDiv.style.fontFamily = 'Poppins, "Noto Sans TC", "Font Awesome 7 Free", "Font Awesome 7 Brands"';
-      tempDiv.innerHTML = 'Loading fonts... 載入字體...';
+      const tempDiv = document.createElement("div");
+      tempDiv.style.position = "absolute";
+      tempDiv.style.left = "-9999px";
+      tempDiv.style.fontFamily =
+        'Poppins, "Noto Sans TC", "Font Awesome 7 Free", "Font Awesome 7 Brands"';
+      tempDiv.innerHTML = "Loading fonts... 載入字體...";
       document.body.appendChild(tempDiv);
-      
+
       // Trigger font load by forcing layout
       tempDiv.offsetHeight;
-      
+
       // Wait for fonts to actually load
       await Promise.all([
-        document.fonts.load('400 16px Poppins'),
+        document.fonts.load("400 16px Poppins"),
         document.fonts.load('400 16px "Noto Sans TC"'),
         document.fonts.load('400 16px "Font Awesome 7 Free"'),
-        document.fonts.load('400 16px "Font Awesome 7 Brands"')
+        document.fonts.load('400 16px "Font Awesome 7 Brands"'),
       ]).catch(() => {});
-      
+
       // Remove temp div
       document.body.removeChild(tempDiv);
     });
 
-    console.log('Fonts loaded, capturing screenshot...');
-    
+    console.log("Fonts loaded, capturing screenshot...");
+
     // Wait additional time for rendering
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
     // Ensure parent directory exists for the output file (in case a custom path was provided)
     await fs.promises.mkdir(path.dirname(outFile), { recursive: true });
