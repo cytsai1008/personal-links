@@ -1,4 +1,4 @@
-name: Deploy by checkout, screenshot, merge and push
+name: Deploy by checkout, screenshot, worktree deploy
 
 on:
   push:
@@ -38,7 +38,7 @@ jobs:
           bundler-cache: true
           cache-version: 0
 
-      - name: Setup Node.js (no automatic cache)
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "18"
@@ -65,11 +65,9 @@ jobs:
           CI: "true"
 
       - name: Start local server and wait for availability
-        # Start the server in the background and poll until it responds before continuing
         run: |
           npm run serve &>/tmp/serve.log &
           echo "Started local server, logging to /tmp/serve.log"
-          # Wait up to 60 seconds for the server to become available on 127.0.0.1:4000
           MAX_WAIT=60
           URL="${{ env.SCREENSHOT_URL_OVERRIDE || 'http://127.0.0.1:4000/' }}"
           for i in $(seq 1 $MAX_WAIT); do
@@ -92,10 +90,7 @@ jobs:
       - name: Run screenshot script
         run: npm run ss
         env:
-          # Ensure the screenshot script targets the same URL we waited on above.
-          # You can override this when dispatching the workflow by setting SCREENSHOT_URL_OVERRIDE.
           SCREENSHOT_URL: ${{ env.SCREENSHOT_URL_OVERRIDE || 'http://127.0.0.1:4000/' }}
-          # Output directory for screenshots (matches the script's default)
           SCREENSHOT_DIR: assets/og
 
       - name: Prepare git for deploy branch operations
@@ -105,117 +100,95 @@ jobs:
           git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
           git fetch origin --prune
 
-      - name: Checkout (or create) deploy branch
+      - name: Commit and push screenshots using git worktree
         run: |
+          set -euo pipefail
+
           TARGET_BRANCH="deploy"
+          WORKTREE_DIR="$(mktemp -d /tmp/deploy-worktree-XXXX)"
+          SCREENSHOT_DIR="assets/og"
+
+          echo "Using worktree dir: ${WORKTREE_DIR}"
+          echo "Target deploy branch: ${TARGET_BRANCH}"
+
+          # Ensure we have latest refs
+          git fetch origin --prune
+
+          # If deploy branch exists on remote, create a worktree from origin/deploy.
           if git ls-remote --heads origin "${TARGET_BRANCH}" | grep -q "${TARGET_BRANCH}"; then
-            git checkout "${TARGET_BRANCH}"
-            git reset --hard "origin/${TARGET_BRANCH}"
+            echo "Remote branch origin/${TARGET_BRANCH} exists. Creating worktree from it."
+            # Try to add a worktree from the remote branch
+            git worktree add --checkout "${WORKTREE_DIR}" "origin/${TARGET_BRANCH}" || {
+              # fallback: create a local branch tracking origin/TARGET_BRANCH and then worktree
+              git branch --track "${TARGET_BRANCH}" "origin/${TARGET_BRANCH}" || true
+              git worktree add --checkout "${WORKTREE_DIR}" "${TARGET_BRANCH}"
+            }
           else
-            git checkout --orphan "${TARGET_BRANCH}"
-            git rm -rf .
-            # create an initial empty commit so branch exists
+            echo "Remote branch origin/${TARGET_BRANCH} does not exist. Initializing an orphan deploy branch in worktree."
+            # Create an orphan branch in the worktree so we don't disturb the current working tree
+            # Initialize an empty repo state in the worktree
+            git init "${WORKTREE_DIR}"
+            pushd "${WORKTREE_DIR}" >/dev/null
+            git remote add origin "https://github.com/${{ github.repository }}.git"
+            # Create orphan branch and an initial empty commit
+            git checkout --orphan "${TARGET_BRANCH}" || true
             git commit --allow-empty -m "Initialize ${TARGET_BRANCH} branch"
-            git push origin "${TARGET_BRANCH}"
+            git push "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" "${TARGET_BRANCH}"
+            popd >/dev/null
+            # Now add worktree from newly-created remote branch
+            git worktree add --checkout "${WORKTREE_DIR}" "origin/${TARGET_BRANCH}" || git worktree add --checkout "${WORKTREE_DIR}" "${TARGET_BRANCH}"
           fi
 
-      - name: Merge latest master into deploy
-        run: |
-          # Ensure we have the latest master
-          git fetch origin master:refs/remotes/origin/master
-          # Merge changes from master; prefer theirs if conflicts to keep deploy content stable,
-          # but allow automatic merges. Adjust strategy as needed.
-          git merge --no-edit origin/master || git merge --no-edit -X theirs origin/master || true
-
-      - name: Copy/update screenshots (if generated in working tree)
-        run: |
-          # If your screenshot script outputs to a specific dir (e.g. assets/og/), ensure it's staged.
-          # Adjust the path below if your screenshots are output elsewhere.
-          SCREENSHOT_DIR="assets/og"
-          if [ -d "${SCREENSHOT_DIR}" ]; then
-            git add "${SCREENSHOT_DIR}"
-          else
-            echo "Screenshot directory ${SCREENSHOT_DIR} not found; skipping add."
-          fi
-
-      - name: Commit and push screenshots via a temporary branch to avoid checkout conflicts
-        run: |
-          # Strategy:
-          # 1) Create a temporary branch from the current HEAD, commit the screenshots there.
-          # 2) Checkout (or create) the deploy branch.
-          # 3) Pull the screenshots from the temporary branch into deploy using `git checkout tmp -- path`.
-          # 4) Commit & push only the screenshots to deploy.
-          #
-          # This avoids leaving uncommitted changes in the working tree that block branch checkout
-          # and ensures we never push the current HEAD to master accidentally.
-
-          SCREENSHOT_DIR="assets/og"
-          TMP_BRANCH="tmp-screenshots-${GITHUB_RUN_ID:-manual}-${GITHUB_RUN_NUMBER:-0}"
-          TARGET_BRANCH="deploy"
-
-          echo "Temporary branch will be: ${TMP_BRANCH}"
+          # Ensure worktree has a git identity
+          pushd "${WORKTREE_DIR}" >/dev/null
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          popd >/dev/null
 
-          # Create temp branch from current HEAD (this keeps current working tree intact)
-          git checkout -b "${TMP_BRANCH}"
-
-          # Stage screenshots (if present) and commit on the temp branch
+          # Copy screenshots into the worktree (preserve only that directory)
           if [ -d "${SCREENSHOT_DIR}" ]; then
-            git add -- "${SCREENSHOT_DIR}"
-            if [ -n "$(git diff --cached --name-only)" ]; then
-              git commit -m "Temp: capture screenshots [ci skip]" || true
+            echo "Copying screenshots to worktree..."
+            mkdir -p "${WORKTREE_DIR}/assets"
+            # Use rsync semantics if available to replace the directory contents
+            if command -v rsync >/dev/null 2>&1; then
+              rsync -a --delete "${SCREENSHOT_DIR}/" "${WORKTREE_DIR}/assets/og/"
             else
-              echo "No screenshot changes to commit on temp branch."
+              rm -rf "${WORKTREE_DIR}/assets/og" || true
+              cp -a "${SCREENSHOT_DIR}" "${WORKTREE_DIR}/assets/" || true
             fi
           else
-            echo "No ${SCREENSHOT_DIR} present on workspace to commit."
+            echo "No screenshots found at ${SCREENSHOT_DIR}; nothing to copy."
           fi
 
-          # Push the temp branch to the remote so we can reference its tree safely
-          git push --set-upstream origin "${TMP_BRANCH}" || true
+          # Commit and push only the screenshots in the worktree
+          pushd "${WORKTREE_DIR}" >/dev/null
 
-          # Fetch and prepare the deploy branch
-          git fetch origin --prune
-          if git ls-remote --heads origin "${TARGET_BRANCH}" | grep -q "${TARGET_BRANCH}"; then
-            git checkout "${TARGET_BRANCH}"
-            git reset --mixed "origin/${TARGET_BRANCH}" || true
-          else
-            git checkout --orphan "${TARGET_BRANCH}"
-            git rm -rf .
-            git commit --allow-empty -m "Initialize ${TARGET_BRANCH} branch"
-          fi
-
-          # Ensure any tracked build artifacts are removed from index
+          # Remove accidentally tracked build artifacts from index if present
           git rm -r --cached --ignore-unmatch _site .bundle vendor node_modules || true
           git rm --cached --ignore-unmatch Gemfile.lock package-lock.json || true
 
-          # Pull screenshots from the temp branch into the deploy branch working tree
-          if git show --name-only --pretty=format: "origin/${TMP_BRANCH}:${SCREENSHOT_DIR}" >/dev/null 2>&1; then
-            :
+          # Stage only assets/og (create the path in case it's not present)
+          if [ -d "assets/og" ]; then
+            git add -- "assets/og"
           fi
-          # Using `git checkout <branch> -- <path>` to copy files from the temp branch into current branch
-          git checkout "${TMP_BRANCH}" -- "${SCREENSHOT_DIR}" || true
 
-          # Stage and commit only the screenshots (if any)
-          if [ -d "${SCREENSHOT_DIR}" ]; then
-            git add -- "${SCREENSHOT_DIR}"
-            if [ -n "$(git diff --cached --name-only)" ]; then
-              git commit -m "Update screenshots from master [skip ci]" || true
-              git push origin HEAD:deploy --follow-tags
-            else
-              echo "No staged screenshot changes to commit."
-            fi
+          if [ -n "$(git diff --cached --name-only || true)" ]; then
+            git commit -m "Update screenshots [skip ci]" || true
+            # Push to deploy branch explicitly
+            git push "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:"${TARGET_BRANCH}" --follow-tags
           else
-            echo "No screenshots found to add to deploy branch."
+            echo "No changes to commit in worktree."
           fi
 
-          # Cleanup: delete temporary branch locally and remotely
-          git checkout - >/dev/null 2>&1 || true
-          git branch -D "${TMP_BRANCH}" >/dev/null 2>&1 || true
-          git push origin --delete "${TMP_BRANCH}" >/dev/null 2>&1 || true
+          popd >/dev/null
+
+          # Remove the worktree and prune
+          git worktree remove "${WORKTREE_DIR}" --force || true
+          git worktree prune || true
 
       - name: Show pushed branch info
         run: |
-          echo "Deployed branch: $(git rev-parse --abbrev-ref HEAD)"
-          git --no-pager log -n 3 --oneline
+          # Show the deploy branch tip on the remote
+          git fetch origin deploy:refs/remotes/origin/deploy || true
+          echo "Remote deploy branch last commits:"
+          git --no-pager log -n 5 --oneline origin/deploy || echo "No origin/deploy branch."
