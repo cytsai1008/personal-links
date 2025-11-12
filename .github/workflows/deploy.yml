@@ -141,7 +141,7 @@ jobs:
 
           # Merge master branch into deploy
           echo "Merging origin/master into ${TARGET_BRANCH}..."
-          git merge origin/master -m "Merge master into ${TARGET_BRANCH}" || {
+          git merge origin/master --allow-unrelated-histories -m "Merge master into ${TARGET_BRANCH}" || {
             echo "Merge conflict detected, attempting to resolve by preferring master for all files except screenshots..."
             # Accept all changes from master
             git checkout --theirs .
