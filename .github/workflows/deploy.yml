@@ -145,20 +145,35 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           popd >/dev/null
 
-          # Copy screenshots into the worktree (preserve only that directory)
-          if [ -d "${SCREENSHOT_DIR}" ]; then
-            echo "Copying screenshots to worktree..."
-            mkdir -p "${WORKTREE_DIR}/assets"
-            # Use rsync semantics if available to replace the directory contents
-            if command -v rsync >/dev/null 2>&1; then
-              rsync -a --delete "${SCREENSHOT_DIR}/" "${WORKTREE_DIR}/assets/og/"
-            else
-              rm -rf "${WORKTREE_DIR}/assets/og" || true
-              cp -a "${SCREENSHOT_DIR}" "${WORKTREE_DIR}/assets/" || true
-            fi
+          # Sync repository content into the worktree, excluding common build artifacts
+          echo "Syncing repository content into worktree (excluding build artifacts)..."
+          # Create target root if missing
+          mkdir -p "${WORKTREE_DIR}"
+          # Define rsync exclude patterns
+          RSYNC_EXCLUDES=(
+            --exclude='.git'
+            --exclude='_site'
+            --exclude='node_modules'
+            --exclude='.bundle'
+            --exclude='vendor'
+            --exclude='vendor/bundle'
+            --exclude='Gemfile.lock'
+            --exclude='package-lock.json'
+            --exclude='yarn.lock'
+            --exclude='.jekyll-cache'
+            --exclude='.sass-cache'
+          )
+          # Prefer rsync for a robust sync; fall back to tar if absent
+          if command -v rsync >/dev/null 2>&1; then
+            rsync -a --delete "${RSYNC_EXCLUDES[@]}" ./ "${WORKTREE_DIR}/"
           else
-            echo "No screenshots found at ${SCREENSHOT_DIR}; nothing to copy."
+            echo "rsync not found; using tar fallback"
+            tar czf /tmp/repo-sync.tar.gz --exclude=.git --exclude=_site --exclude=node_modules --exclude=.bundle --exclude=vendor --exclude=vendor/bundle --exclude=Gemfile.lock --exclude=package-lock.json --exclude=yarn.lock --exclude=.jekyll-cache --exclude=.sass-cache -C "${GITHUB_WORKSPACE}" .
+            tar xzf /tmp/repo-sync.tar.gz -C "${WORKTREE_DIR}"
           fi
+          # Ensure assets/og exists in the worktree (so subsequent git add has a path)
+          mkdir -p "${WORKTREE_DIR}/assets/og"
+          echo "Repository sync to worktree complete."
 
           # Commit and push only the screenshots in the worktree
           pushd "${WORKTREE_DIR}" >/dev/null
