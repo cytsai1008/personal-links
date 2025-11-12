@@ -36,31 +36,58 @@ const puppeteer = require("puppeteer");
     const page = await browser.newPage();
     await page.setViewport({ width: 1200, height: 600 });
 
+    // Enable console logging from the page
+    page.on('console', msg => console.log('PAGE LOG:', msg.text()));
+    page.on('pageerror', error => console.log('PAGE ERROR:', error.message));
+
     // Navigate and wait for load event
     await page.goto(url, { waitUntil: "load", timeout: 60_000 });
 
     // Wait for network to be idle
     await page.waitForNetworkIdle({ idleTime: 500, timeout: 30000 });
 
-    // Wait for specific fonts to be loaded
-    await page.evaluate(async () => {
-      const fontsToLoad = ['Poppins', 'Noto Sans TC', 'Font Awesome 7 Brands', 'Font Awesome 7 Free'];
-      
+    // Diagnose font loading
+    const fontInfo = await page.evaluate(async () => {
       // Wait for document fonts to be ready
       await document.fonts.ready;
       
-      // Check if our specific fonts loaded
-      const checkFonts = () => {
-        return fontsToLoad.every(fontFamily => {
-          return document.fonts.check(`16px "${fontFamily}"`);
+      // Get all loaded fonts
+      const loadedFonts = [];
+      document.fonts.forEach(font => {
+        loadedFonts.push({
+          family: font.family,
+          style: font.style,
+          weight: font.weight,
+          status: font.status
         });
-      };
+      });
       
-      // If not all fonts are loaded, wait a bit more
-      if (!checkFonts()) {
-        await new Promise(resolve => setTimeout(resolve, 3000));
-      }
+      // Check specific fonts
+      const fontsToCheck = [
+        'Poppins', 
+        'Noto Sans TC', 
+        'Font Awesome 7 Brands', 
+        'Font Awesome 7 Free',
+        'Font Awesome 6 Brands', 
+        'Font Awesome 6 Free'
+      ];
+      
+      const fontChecks = {};
+      fontsToCheck.forEach(fontFamily => {
+        fontChecks[fontFamily] = document.fonts.check(`16px "${fontFamily}"`);
+      });
+      
+      return {
+        loadedFonts,
+        fontChecks,
+        fontsReady: document.fonts.status
+      };
     });
+
+    console.log('Font diagnostics:', JSON.stringify(fontInfo, null, 2));
+    
+    // Wait additional time for rendering
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
     // Ensure parent directory exists for the output file (in case a custom path was provided)
     await fs.promises.mkdir(path.dirname(outFile), { recursive: true });
