@@ -117,12 +117,10 @@ jobs:
           # If deploy branch exists on remote, create a worktree from origin/deploy.
           if git ls-remote --heads origin "${TARGET_BRANCH}" | grep -q "${TARGET_BRANCH}"; then
             echo "Remote branch origin/${TARGET_BRANCH} exists. Creating worktree from it."
-            # Try to add a worktree from the remote branch
-            git worktree add --checkout "${WORKTREE_DIR}" "origin/${TARGET_BRANCH}" || {
-              # fallback: create a local branch tracking origin/TARGET_BRANCH and then worktree
-              git branch --track "${TARGET_BRANCH}" "origin/${TARGET_BRANCH}" || true
-              git worktree add --checkout "${WORKTREE_DIR}" "${TARGET_BRANCH}"
-            }
+            # Create or update local tracking branch first
+            git branch -f "${TARGET_BRANCH}" "origin/${TARGET_BRANCH}" || git branch --track "${TARGET_BRANCH}" "origin/${TARGET_BRANCH}"
+            # Create worktree on the local branch (not detached HEAD)
+            git worktree add --checkout "${WORKTREE_DIR}" "${TARGET_BRANCH}"
           else
             echo "Remote branch origin/${TARGET_BRANCH} does not exist. Creating from master."
             git worktree add -b "${TARGET_BRANCH}" "${WORKTREE_DIR}" origin/master
