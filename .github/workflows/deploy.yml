@@ -69,7 +69,7 @@ jobs:
           npm run serve &>/tmp/serve.log &
           echo "Started local server, logging to /tmp/serve.log"
           MAX_WAIT=60
-          URL="${{ env.SCREENSHOT_URL_OVERRIDE || 'http://127.0.0.1:4000/' }}"
+          URL="${{ env.SCREENSHOT_URL_OVERRIDE || 'http://localhost:4000/' }}"
           for i in $(seq 1 $MAX_WAIT); do
             if curl -sS --fail "$URL" >/dev/null 2>&1; then
               echo "Server is up at $URL (after $i seconds)"
@@ -90,7 +90,7 @@ jobs:
       - name: Run screenshot script
         run: npm run ss
         env:
-          SCREENSHOT_URL: ${{ env.SCREENSHOT_URL_OVERRIDE || 'http://127.0.0.1:4000/' }}
+          SCREENSHOT_URL: ${{ env.SCREENSHOT_URL_OVERRIDE || 'http://localhost:4000/' }}
           SCREENSHOT_DIR: assets/og
 
       - name: Prepare git for deploy branch operations
