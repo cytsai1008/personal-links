@@ -31,6 +31,13 @@ jobs:
             echo "lockfile=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Setup Ruby for Jekyll preview
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.1"
+          bundler-cache: true
+          cache-version: 0
+
       - name: Setup Node.js (no automatic cache)
         uses: actions/setup-node@v4
         with:
