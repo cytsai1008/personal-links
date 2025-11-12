@@ -22,14 +22,40 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node.js
+      - name: Check for lockfile
+        id: check-lock
+        run: |
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ] || [ -f yarn.lock ]; then
+            echo "lockfile=true" >> $GITHUB_OUTPUT
+          else
+            echo "lockfile=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node.js (no automatic cache)
         uses: actions/setup-node@v4
         with:
           node-version: "18"
-          cache: "npm"
 
-      - name: Install npm dependencies
+      - name: Restore npm cache (only when lockfile present)
+        if: ${{ steps.check-lock.outputs.lockfile == 'true' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json','**/npm-shrinkwrap.json','**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install npm dependencies (lockfile present -> npm ci)
+        if: ${{ steps.check-lock.outputs.lockfile == 'true' }}
         run: npm ci
+        env:
+          CI: "true"
+
+      - name: Install npm dependencies (no lockfile -> npm install)
+        if: ${{ steps.check-lock.outputs.lockfile == 'false' }}
+        run: npm install --no-audit --no-fund
+        env:
+          CI: "true"
 
       - name: Start local server
         # Start the server in the background so the next step can run against it
@@ -68,7 +94,7 @@ jobs:
         run: |
           # Ensure we have the latest master
           git fetch origin master:refs/remotes/origin/master
-          # Merge changes from master; prefer ours on conflicts to keep deploy-specific files,
+          # Merge changes from master; prefer theirs if conflicts to keep deploy content stable,
           # but allow automatic merges. Adjust strategy as needed.
           git merge --no-edit origin/master || git merge --no-edit -X theirs origin/master || true
 
