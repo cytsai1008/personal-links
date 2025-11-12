@@ -37,13 +37,13 @@ const puppeteer = require("puppeteer");
     await page.setViewport({ width: 1200, height: 600 });
 
     // Navigate and wait for the network to be mostly idle
-    await page.goto(url, { waitUntil: "networkidle2", timeout: 60_000 });
+    await page.goto(url, { waitUntil: "networkidle0", timeout: 60_000 });
 
-    // Wait for fonts to load (including Font Awesome)
-    await page.evaluateHandle("document.fonts.ready");
+    // Wait for all fonts to load
+    await page.evaluate(() => document.fonts.ready);
     
-    // Additional wait for Font Awesome icons to render
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Wait for Font Awesome script to execute and icons to render
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
     // Ensure parent directory exists for the output file (in case a custom path was provided)
     await fs.promises.mkdir(path.dirname(outFile), { recursive: true });
