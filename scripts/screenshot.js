@@ -39,6 +39,9 @@ const puppeteer = require("puppeteer");
     // Navigate and wait for the network to be mostly idle
     await page.goto(url, { waitUntil: "networkidle2", timeout: 60_000 });
 
+    // Wait for fonts to load
+    await page.evaluateHandle("document.fonts.ready");
+
     // Ensure parent directory exists for the output file (in case a custom path was provided)
     await fs.promises.mkdir(path.dirname(outFile), { recursive: true });
 
