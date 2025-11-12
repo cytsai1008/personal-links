@@ -57,17 +57,39 @@ jobs:
         env:
           CI: "true"
 
-      - name: Start local server
-        # Start the server in the background so the next step can run against it
+      - name: Start local server and wait for availability
+        # Start the server in the background and poll until it responds before continuing
         run: |
           npm run serve &>/tmp/serve.log &
-          # wait a short while for server to boot (adjust if needed)
-          sleep 3
+          echo "Started local server, logging to /tmp/serve.log"
+          # Wait up to 60 seconds for the server to become available on 127.0.0.1:4000
+          MAX_WAIT=60
+          URL="${{ env.SCREENSHOT_URL_OVERRIDE || 'http://127.0.0.1:4000/' }}"
+          for i in $(seq 1 $MAX_WAIT); do
+            if curl -sS --fail "$URL" >/dev/null 2>&1; then
+              echo "Server is up at $URL (after $i seconds)"
+              break
+            fi
+            echo "Waiting for server at $URL... ($i/$MAX_WAIT)"
+            sleep 1
+          done
+          if ! curl -sS --fail "$URL" >/dev/null 2>&1; then
+            echo "Server did not become available within ${MAX_WAIT}s"
+            echo "---- /tmp/serve.log (last 200 lines) ----"
+            tail -n 200 /tmp/serve.log || true
+            exit 1
+          fi
         env:
           CI: "true"
 
       - name: Run screenshot script
         run: npm run ss
+        env:
+          # Ensure the screenshot script targets the same URL we waited on above.
+          # You can override this when dispatching the workflow by setting SCREENSHOT_URL_OVERRIDE.
+          SCREENSHOT_URL: ${{ env.SCREENSHOT_URL_OVERRIDE || 'http://127.0.0.1:4000/' }}
+          # Output directory for screenshots (matches the script's default)
+          SCREENSHOT_DIR: assets/og
 
       - name: Prepare git for deploy branch operations
         run: |
