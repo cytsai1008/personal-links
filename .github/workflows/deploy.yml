@@ -160,7 +160,7 @@ jobs:
           git add .
 
           if [ -n "$(git diff --cached --name-only || true)" ]; then
-            git commit -m "Update screenshots [skip ci]" || true
+            git commit -m "Update screenshots" || true
             # Push to deploy branch explicitly
             git push "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:"${TARGET_BRANCH}" --follow-tags
           else
