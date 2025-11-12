@@ -1,0 +1,28 @@
+{
+  "name": "links",
+  "version": "1.0.0",
+  "description": "A Beautiful Jekyll Theme For Links",
+  "main": "postcss.config.js",
+  "dependencies": {
+    "jekyll": "^3.0.0-beta1",
+    "puppeteer": "^22.11.1",
+    "tailwindcss": "^2.2.4"
+  },
+  "devDependencies": {
+    "jekyll": "^3.0.0-beta1",
+    "nodemon": "^2.0.7",
+    "tailwindcss": "^2.2.4"
+  },
+  "scripts": {
+    "serve": "bundle exec jekyll serve",
+    "ss": "node ./scripts/screenshot.js"
+  },
+  "keywords": [
+    "links",
+    "devs",
+    "jekyll",
+    "theme"
+  ],
+  "author": "Harsh",
+  "license": "ISC"
+}

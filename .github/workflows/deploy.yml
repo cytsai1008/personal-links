@@ -1,0 +1,181 @@
+name: Deploy by checkout, screenshot, worktree deploy
+
+on:
+  push:
+    branches: ["master"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: "deploy-screenshots"
+  cancel-in-progress: false
+
+jobs:
+  update-screenshots-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for lockfile
+        id: check-lock
+        run: |
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ] || [ -f yarn.lock ]; then
+            echo "lockfile=true" >> $GITHUB_OUTPUT
+          else
+            echo "lockfile=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Ruby for Jekyll preview
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.1"
+          bundler-cache: true
+          cache-version: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Restore npm cache (only when lockfile present)
+        if: ${{ steps.check-lock.outputs.lockfile == 'true' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json','**/npm-shrinkwrap.json','**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install npm dependencies (lockfile present -> npm ci)
+        if: ${{ steps.check-lock.outputs.lockfile == 'true' }}
+        run: npm ci
+        env:
+          CI: "true"
+
+      - name: Install npm dependencies (no lockfile -> npm install)
+        if: ${{ steps.check-lock.outputs.lockfile == 'false' }}
+        run: npm install --no-audit --no-fund
+        env:
+          CI: "true"
+
+      - name: Start local server and wait for availability
+        run: |
+          npm run serve &>/tmp/serve.log &
+          echo "Started local server, logging to /tmp/serve.log"
+          MAX_WAIT=60
+          URL="${{ env.SCREENSHOT_URL_OVERRIDE || 'http://127.0.0.1:4000/' }}"
+          for i in $(seq 1 $MAX_WAIT); do
+            if curl -sS --fail "$URL" >/dev/null 2>&1; then
+              echo "Server is up at $URL (after $i seconds)"
+              break
+            fi
+            echo "Waiting for server at $URL... ($i/$MAX_WAIT)"
+            sleep 1
+          done
+          if ! curl -sS --fail "$URL" >/dev/null 2>&1; then
+            echo "Server did not become available within ${MAX_WAIT}s"
+            echo "---- /tmp/serve.log (last 200 lines) ----"
+            tail -n 200 /tmp/serve.log || true
+            exit 1
+          fi
+        env:
+          CI: "true"
+
+      - name: Run screenshot script
+        run: npm run ss
+        env:
+          SCREENSHOT_URL: ${{ env.SCREENSHOT_URL_OVERRIDE || 'http://127.0.0.1:4000/' }}
+          SCREENSHOT_DIR: assets/og
+
+      - name: Prepare git for deploy branch operations
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git fetch origin --prune
+
+      - name: Merge master to deploy and update screenshots
+        run: |
+          set -euo pipefail
+
+          TARGET_BRANCH="deploy"
+          WORKTREE_DIR="$(mktemp -d /tmp/deploy-worktree-XXXX)"
+          SCREENSHOT_DIR="assets/og"
+
+          echo "Using worktree dir: ${WORKTREE_DIR}"
+          echo "Target deploy branch: ${TARGET_BRANCH}"
+
+          # Ensure we have latest refs
+          git fetch origin --prune
+
+          # If deploy branch exists on remote, create a worktree from origin/deploy.
+          if git ls-remote --heads origin "${TARGET_BRANCH}" | grep -q "${TARGET_BRANCH}"; then
+            echo "Remote branch origin/${TARGET_BRANCH} exists. Creating worktree from it."
+            # Create or update local tracking branch first
+            git branch -f "${TARGET_BRANCH}" "origin/${TARGET_BRANCH}" || git branch --track "${TARGET_BRANCH}" "origin/${TARGET_BRANCH}"
+            # Create worktree on the local branch (not detached HEAD)
+            git worktree add --checkout "${WORKTREE_DIR}" "${TARGET_BRANCH}"
+          else
+            echo "Remote branch origin/${TARGET_BRANCH} does not exist. Creating from master."
+            git worktree add -b "${TARGET_BRANCH}" "${WORKTREE_DIR}" origin/master
+            pushd "${WORKTREE_DIR}" >/dev/null
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "Initialize ${TARGET_BRANCH} branch from master"
+            git push "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" "${TARGET_BRANCH}"
+            popd >/dev/null
+          fi
+
+          # Ensure worktree has a git identity
+          pushd "${WORKTREE_DIR}" >/dev/null
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Merge master branch into deploy
+          echo "Merging origin/master into ${TARGET_BRANCH}..."
+          git merge origin/master --allow-unrelated-histories -m "Merge master into ${TARGET_BRANCH}" || {
+            echo "Merge conflict detected, attempting to resolve by preferring master for all files except screenshots..."
+            # Accept all changes from master
+            git checkout --theirs .
+            # But keep our screenshots
+            if [ -d "assets/og" ] && [ -n "$(ls -A assets/og 2>/dev/null)" ]; then
+              git checkout --ours -- assets/og || true
+            fi
+            git add .
+            git commit -m "Merge master into ${TARGET_BRANCH} (auto-resolved)"
+          }
+
+          # Copy updated screenshots from the main workspace
+          echo "Copying updated screenshots from workspace..."
+          mkdir -p "${SCREENSHOT_DIR}"
+          cp -r "${GITHUB_WORKSPACE}/${SCREENSHOT_DIR}"/* "${SCREENSHOT_DIR}/" || echo "No screenshots to copy"
+
+          # Stage and commit all changes (merge + screenshots)
+          git add .
+
+          if [ -n "$(git diff --cached --name-only || true)" ]; then
+            git commit -m "Update screenshots [skip ci]" || true
+            # Push to deploy branch explicitly
+            git push "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:"${TARGET_BRANCH}" --follow-tags
+          else
+            echo "No changes to commit in worktree."
+          fi
+
+          popd >/dev/null
+
+          # Remove the worktree and prune
+          git worktree remove "${WORKTREE_DIR}" --force || true
+          git worktree prune || true
+
+      - name: Show pushed branch info
+        run: |
+          # Show the deploy branch tip on the remote
+          git fetch origin deploy:refs/remotes/origin/deploy || true
+          echo "Remote deploy branch last commits:"
+          git --no-pager log -n 5 --oneline origin/deploy || echo "No origin/deploy branch."

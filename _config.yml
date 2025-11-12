@@ -1,0 +1,115 @@
+# YOUR NAME OR TITLE OF YOUR SITE
+name: 健一 Kenichi
+
+# YOUR BRAND/PERSONAL TAGLINE
+tagline: |
+  一隻寫程式和拍照的藍貓，大佬椒麻<br>
+  A blue cat<br>
+  writes codes & takes photos
+
+# YOUR/BRAND IMAGE URL
+Image_URL: https://github.com/cytsai1008/public-image/blob/main/avatars/photo_2_2024-07-11_17-50-17.webp?raw=true
+
+# CHANGE THE BACKGROUND IMAGE OF THE WEBSITE BY JUST ADDING THE IMAGE URL
+Cover_Image: https://github.com/cytsai1008/public-image/blob/main/photos/DSCN6869.webp?raw=true
+
+# SOCIAL MEDIA
+links:
+  # IF YOU DON'T WANT TO USE ANY OF THE FOLLOWING, JUST LEAVE THE URL BLANK
+
+  # FACEBOOK
+  - Name: Facebook
+    URL: https://www.facebook.com/profile.php?id=100065887264145
+    Color: "#3b5998"
+    Icon-Class: fab fa-facebook
+
+    # TWITTER
+  - Name: Twitter
+    URL: https://x.com
+    Username: Saito_Kenichi_
+    Color: "#1DA1F2"
+    Icon-Class: fab fa-twitter
+
+    # INSTAGRAM
+  #  - Name: 攝影 IG
+  #    URL: https://www.instagram.com
+  #    Username: kenichi.photo
+  #    Color: '#DD2A7B'
+  #    Icon-Class: fab fa-instagram
+  # THREADS.NET
+  #  - Name: 攝影 Threads
+  #    URL: https://threads.net
+  #    Username: kenichi.photo
+  #    Color: '#000000'
+  #    Icon-Class: fa-brands fa-threads
+  #    Text_Color: '#ffffff'
+  #
+  - Name: 相片集
+    URL: https://kenichi-docs.notion.site/Photo-Set-2a9d07d24293816487fbeec09e8a63aa
+    Color: "#000000"
+    Icon-Class: fab fa-notion
+    Text_Color: "#ffffff"
+
+    # Bluesky
+  - Name: Bluesky
+    URL: https://bsky.app/profile/furrybsky.photocat.blue
+    Color: "#1185fe"
+    Icon-Class: fab fa-bluesky
+
+    # STEAM
+  #  - Name: Steam
+  #    URL: https://steamcommunity.com/id
+  #    Username: 'cytsai1008'
+  #    Color: '#314763'
+  #    Icon-Class: fab fa-steam
+
+  # GITHUB
+  - Name: GitHub
+    URL: http://github.com
+    Username: cytsai1008
+    Text_Color: "#000000"
+    Color: "#cccccc"
+    Icon-Class: fab fa-github
+
+  #   # DISCORD
+  # - Name: Discord
+  #   URL: 'https://discordapp.com/users/851820493938098238'
+  #   Icon-Class: fab fa-discord
+  #   Color: '#5865F2'
+  #   Text_Color: '#ffffff'
+
+imglinks:
+  - Name: VRChat
+    URL: https://vrchat.com/home/user/usr_e8bc0487-8705-4a6e-9bcb-6739efc6bca0
+    Color: "#003333"
+    Text_Color: "#ffffff"
+    Img_URL: "vrc-logo-cropped.svg"
+
+# YOU CAN REMOVE FOOTER COMPLETELY BY SIMPLY REMOVING EITHER THE YES OR REMOVING THE FOOTER STATEMENT BELOW COMPLETELY
+# footer: 'Yes'
+
+# STOP EDITING HERE ---------- YOU'VE REACHED THE END OF THE CONFIGURATION
+
+# Compress
+compress_html:
+  clippings: all
+
+# Exclude
+exclude:
+  - .sass-cache/
+  - .jekyll-cache/
+  - gemfiles/
+  - Gemfile
+  - Gemfile.lock
+  - node_modules/
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/
+  - Icon
+
+# Base URL
+# baseurl: /links
+
+# Default Markdown Engine
+markdown: kramdown
