@@ -43,7 +43,7 @@ const puppeteer = require("puppeteer");
     await page.evaluateHandle("document.fonts.ready");
     
     // Additional wait for Font Awesome icons to render
-    await page.waitForTimeout(2000);
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     // Ensure parent directory exists for the output file (in case a custom path was provided)
     await fs.promises.mkdir(path.dirname(outFile), { recursive: true });
