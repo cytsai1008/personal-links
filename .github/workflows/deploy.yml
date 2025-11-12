@@ -138,13 +138,39 @@ jobs:
             echo "Screenshot directory ${SCREENSHOT_DIR} not found; skipping add."
           fi
 
-      - name: Commit and push changes if any
+      - name: Commit and push changes if any (only screenshots -> deploy)
         run: |
-          if [ -n "$(git status --porcelain)" ]; then
-            git commit -m "Update screenshots from master [skip ci]" || true
-            git push origin HEAD:"${{ github.ref_name || 'deploy' }}" --follow-tags
+          # Ensure we're on the deploy branch (create if missing)
+          TARGET_BRANCH="deploy"
+          if git rev-parse --verify "${TARGET_BRANCH}" >/dev/null 2>&1; then
+            git checkout "${TARGET_BRANCH}"
+            git reset --mixed "origin/${TARGET_BRANCH}" || true
           else
-            echo "No changes to commit."
+            git checkout --orphan "${TARGET_BRANCH}"
+            git rm -rf .
+            git commit --allow-empty -m "Initialize ${TARGET_BRANCH} branch"
+          fi
+
+          # Remove any tracked build artifacts from the index to prevent accidental commits
+          git rm -r --cached --ignore-unmatch _site || true
+          git rm -r --cached --ignore-unmatch .bundle vendor node_modules || true
+          git rm --cached --ignore-unmatch Gemfile.lock package-lock.json || true
+
+          # Stage only the screenshots directory (if present)
+          SCREENSHOT_DIR="assets/og"
+          if [ -d "${SCREENSHOT_DIR}" ]; then
+            git add -- "${SCREENSHOT_DIR}"
+          else
+            echo "Screenshot directory ${SCREENSHOT_DIR} not found; nothing to add."
+          fi
+
+          # Commit only if there are staged changes
+          if [ -n "$(git diff --cached --name-only)" ]; then
+            git commit -m "Update screenshots from master [skip ci]" || true
+            # Always push to the deploy branch explicitly to avoid pushing to the event branch
+            git push origin HEAD:deploy --follow-tags
+          else
+            echo "No staged changes to commit."
           fi
 
       - name: Show pushed branch info
