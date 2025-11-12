@@ -36,14 +36,31 @@ const puppeteer = require("puppeteer");
     const page = await browser.newPage();
     await page.setViewport({ width: 1200, height: 600 });
 
-    // Navigate and wait for the network to be mostly idle
-    await page.goto(url, { waitUntil: "networkidle0", timeout: 60_000 });
+    // Navigate and wait for load event
+    await page.goto(url, { waitUntil: "load", timeout: 60_000 });
 
-    // Wait for all fonts to load
-    await page.evaluate(() => document.fonts.ready);
-    
-    // Wait for Font Awesome script to execute and icons to render
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // Wait for network to be idle
+    await page.waitForNetworkIdle({ idleTime: 500, timeout: 30000 });
+
+    // Wait for specific fonts to be loaded
+    await page.evaluate(async () => {
+      const fontsToLoad = ['Poppins', 'Noto Sans TC', 'Font Awesome 7 Brands', 'Font Awesome 7 Free'];
+      
+      // Wait for document fonts to be ready
+      await document.fonts.ready;
+      
+      // Check if our specific fonts loaded
+      const checkFonts = () => {
+        return fontsToLoad.every(fontFamily => {
+          return document.fonts.check(`16px "${fontFamily}"`);
+        });
+      };
+      
+      // If not all fonts are loaded, wait a bit more
+      if (!checkFonts()) {
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+    });
 
     // Ensure parent directory exists for the output file (in case a custom path was provided)
     await fs.promises.mkdir(path.dirname(outFile), { recursive: true });
