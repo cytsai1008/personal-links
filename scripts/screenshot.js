@@ -38,6 +38,25 @@ const puppeteer = require("puppeteer");
     // Set a real user agent to avoid being blocked by font services
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
     
+    // Set referrer to match your configured domain for Font Awesome kit
+    await page.setExtraHTTPHeaders({
+      'Referer': 'https://link.photocat.blue/'
+    });
+    
+    // Block analytics and other non-essential resources to speed up loading
+    await page.setRequestInterception(true);
+    page.on('request', (request) => {
+      const url = request.url();
+      // Block analytics and tracking
+      if (url.includes('google-analytics.com') || 
+          url.includes('googletagmanager.com') ||
+          url.includes('/gtag/')) {
+        request.abort();
+      } else {
+        request.continue();
+      }
+    });
+    
     await page.setViewport({ width: 1200, height: 600 });
 
     // Enable console logging from the page
