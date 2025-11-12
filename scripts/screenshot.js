@@ -43,6 +43,9 @@ const puppeteer = require("puppeteer");
     // Enable console logging from the page
     page.on('console', msg => console.log('PAGE LOG:', msg.text()));
     page.on('pageerror', error => console.log('PAGE ERROR:', error.message));
+    page.on('requestfailed', request => {
+      console.log('FAILED REQUEST:', request.url(), 'Status:', request.failure()?.errorText);
+    });
 
     // Navigate and wait for load event
     await page.goto(url, { waitUntil: "load", timeout: 60_000 });
