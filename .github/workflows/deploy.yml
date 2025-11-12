@@ -1,0 +1,98 @@
+name: Deploy by checkout, screenshot, merge and push
+
+on:
+  push:
+    branches: ["master"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: "deploy-screenshots"
+  cancel-in-progress: false
+
+jobs:
+  update-screenshots-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Start local server
+        # Start the server in the background so the next step can run against it
+        run: |
+          npm run serve &>/tmp/serve.log &
+          # wait a short while for server to boot (adjust if needed)
+          sleep 3
+        env:
+          CI: "true"
+
+      - name: Run screenshot script
+        run: npm run ss
+
+      - name: Prepare git for deploy branch operations
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git fetch origin --prune
+
+      - name: Checkout (or create) deploy branch
+        run: |
+          TARGET_BRANCH="deploy"
+          if git ls-remote --heads origin "${TARGET_BRANCH}" | grep -q "${TARGET_BRANCH}"; then
+            git checkout "${TARGET_BRANCH}"
+            git reset --hard "origin/${TARGET_BRANCH}"
+          else
+            git checkout --orphan "${TARGET_BRANCH}"
+            git rm -rf .
+            # create an initial empty commit so branch exists
+            git commit --allow-empty -m "Initialize ${TARGET_BRANCH} branch"
+            git push origin "${TARGET_BRANCH}"
+          fi
+
+      - name: Merge latest master into deploy
+        run: |
+          # Ensure we have the latest master
+          git fetch origin master:refs/remotes/origin/master
+          # Merge changes from master; prefer ours on conflicts to keep deploy-specific files,
+          # but allow automatic merges. Adjust strategy as needed.
+          git merge --no-edit origin/master || git merge --no-edit -X theirs origin/master || true
+
+      - name: Copy/update screenshots (if generated in working tree)
+        run: |
+          # If your screenshot script outputs to a specific dir (e.g. assets/og/), ensure it's staged.
+          # Adjust the path below if your screenshots are output elsewhere.
+          SCREENSHOT_DIR="assets/og"
+          if [ -d "${SCREENSHOT_DIR}" ]; then
+            git add "${SCREENSHOT_DIR}"
+          else
+            echo "Screenshot directory ${SCREENSHOT_DIR} not found; skipping add."
+          fi
+
+      - name: Commit and push changes if any
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git commit -m "Update screenshots from master [skip ci]" || true
+            git push origin HEAD:"${{ github.ref_name || 'deploy' }}" --follow-tags
+          else
+            echo "No changes to commit."
+          fi
+
+      - name: Show pushed branch info
+        run: |
+          echo "Deployed branch: $(git rev-parse --abbrev-ref HEAD)"
+          git --no-pager log -n 3 --oneline
