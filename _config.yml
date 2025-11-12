@@ -44,15 +44,10 @@ links:
   #    Icon-Class: fa-brands fa-threads
   #    Text_Color: '#ffffff'
   #
-  - Name: 相片集
-    URL: https://kenichi-docs.notion.site/Photo-Set-2a9d07d24293816487fbeec09e8a63aa
-    Color: "#000000"
-    Icon-Class: fab fa-notion
-    Text_Color: "#ffffff"
 
     # Bluesky
   - Name: Bluesky
-    URL: https://bsky.app/profile/furrybsky.photocat.blue
+    URL: https://furrybsky.photocat.blue
     Color: "#1185fe"
     Icon-Class: fab fa-bluesky
 
@@ -70,6 +65,12 @@ links:
     Text_Color: "#000000"
     Color: "#cccccc"
     Icon-Class: fab fa-github
+
+  - Name: 相片集
+    URL: https://kenichi-docs.notion.site/Photo-Set-2a9d07d24293816487fbeec09e8a63aa
+    Color: "#000000"
+    Icon-Class: fab fa-notion
+    Text_Color: "#ffffff"
 
   #   # DISCORD
   # - Name: Discord
