@@ -5,7 +5,7 @@
   "main": "postcss.config.js",
   "dependencies": {
     "jekyll": "^3.0.0-beta1",
-    "puppeteer": "^22.11.1",
+    "puppeteer": "^24.29.1",
     "tailwindcss": "^2.2.4"
   },
   "devDependencies": {
