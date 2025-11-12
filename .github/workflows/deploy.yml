@@ -100,7 +100,7 @@ jobs:
           git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
           git fetch origin --prune
 
-      - name: Commit and push screenshots using git worktree
+      - name: Merge master to deploy and update screenshots
         run: |
           set -euo pipefail
 
@@ -124,68 +124,42 @@ jobs:
               git worktree add --checkout "${WORKTREE_DIR}" "${TARGET_BRANCH}"
             }
           else
-            echo "Remote branch origin/${TARGET_BRANCH} does not exist. Initializing an orphan deploy branch in worktree."
-            # Create an orphan branch in the worktree so we don't disturb the current working tree
-            # Initialize an empty repo state in the worktree
-            git init "${WORKTREE_DIR}"
+            echo "Remote branch origin/${TARGET_BRANCH} does not exist. Creating from master."
+            git worktree add -b "${TARGET_BRANCH}" "${WORKTREE_DIR}" origin/master
             pushd "${WORKTREE_DIR}" >/dev/null
-            git remote add origin "https://github.com/${{ github.repository }}.git"
-            # Create orphan branch and an initial empty commit
-            git checkout --orphan "${TARGET_BRANCH}" || true
-            git commit --allow-empty -m "Initialize ${TARGET_BRANCH} branch"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "Initialize ${TARGET_BRANCH} branch from master"
             git push "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" "${TARGET_BRANCH}"
             popd >/dev/null
-            # Now add worktree from newly-created remote branch
-            git worktree add --checkout "${WORKTREE_DIR}" "origin/${TARGET_BRANCH}" || git worktree add --checkout "${WORKTREE_DIR}" "${TARGET_BRANCH}"
           fi
 
           # Ensure worktree has a git identity
           pushd "${WORKTREE_DIR}" >/dev/null
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          popd >/dev/null
 
-          # Sync repository content into the worktree, excluding common build artifacts
-          echo "Syncing repository content into worktree (excluding build artifacts)..."
-          # Create target root if missing
-          mkdir -p "${WORKTREE_DIR}"
-          # Define rsync exclude patterns
-          RSYNC_EXCLUDES=(
-            --exclude='.git'
-            --exclude='_site'
-            --exclude='node_modules'
-            --exclude='.bundle'
-            --exclude='vendor'
-            --exclude='vendor/bundle'
-            --exclude='Gemfile.lock'
-            --exclude='package-lock.json'
-            --exclude='yarn.lock'
-            --exclude='.jekyll-cache'
-            --exclude='.sass-cache'
-          )
-          # Prefer rsync for a robust sync; fall back to tar if absent
-          if command -v rsync >/dev/null 2>&1; then
-            rsync -a --delete "${RSYNC_EXCLUDES[@]}" ./ "${WORKTREE_DIR}/"
-          else
-            echo "rsync not found; using tar fallback"
-            tar czf /tmp/repo-sync.tar.gz --exclude=.git --exclude=_site --exclude=node_modules --exclude=.bundle --exclude=vendor --exclude=vendor/bundle --exclude=Gemfile.lock --exclude=package-lock.json --exclude=yarn.lock --exclude=.jekyll-cache --exclude=.sass-cache -C "${GITHUB_WORKSPACE}" .
-            tar xzf /tmp/repo-sync.tar.gz -C "${WORKTREE_DIR}"
-          fi
-          # Ensure assets/og exists in the worktree (so subsequent git add has a path)
-          mkdir -p "${WORKTREE_DIR}/assets/og"
-          echo "Repository sync to worktree complete."
+          # Merge master branch into deploy
+          echo "Merging origin/master into ${TARGET_BRANCH}..."
+          git merge origin/master -m "Merge master into ${TARGET_BRANCH}" || {
+            echo "Merge conflict detected, attempting to resolve by preferring master for all files except screenshots..."
+            # Accept all changes from master
+            git checkout --theirs .
+            # But keep our screenshots
+            if [ -d "assets/og" ] && [ -n "$(ls -A assets/og 2>/dev/null)" ]; then
+              git checkout --ours -- assets/og || true
+            fi
+            git add .
+            git commit -m "Merge master into ${TARGET_BRANCH} (auto-resolved)"
+          }
 
-          # Commit and push only the screenshots in the worktree
-          pushd "${WORKTREE_DIR}" >/dev/null
+          # Copy updated screenshots from the main workspace
+          echo "Copying updated screenshots from workspace..."
+          mkdir -p "${SCREENSHOT_DIR}"
+          cp -r "${GITHUB_WORKSPACE}/${SCREENSHOT_DIR}"/* "${SCREENSHOT_DIR}/" || echo "No screenshots to copy"
 
-          # Remove accidentally tracked build artifacts from index if present
-          git rm -r --cached --ignore-unmatch _site .bundle vendor node_modules || true
-          git rm --cached --ignore-unmatch Gemfile.lock package-lock.json || true
-
-          # Stage only assets/og (create the path in case it's not present)
-          if [ -d "assets/og" ]; then
-            git add -- "assets/og"
-          fi
+          # Stage and commit all changes (merge + screenshots)
+          git add .
 
           if [ -n "$(git diff --cached --name-only || true)" ]; then
             git commit -m "Update screenshots [skip ci]" || true
